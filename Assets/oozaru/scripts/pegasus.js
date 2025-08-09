@@ -181,7 +181,7 @@ class Sphere
 
 	static get fullScreen()
 	{
-		return false;
+		return Surface.Screen.width == desktopResolution.width;
 	}
 
 	static set frameRate(value)
@@ -196,8 +196,8 @@ class Sphere
 
 	static set fullScreen(value)
 	{
-		if (value !== false)
-			throw Error(`Full-screen mode is not implemented`);
+		if (value !== false && Surface.Screen.width != desktopResolution.width)
+			Galileo.rerez(desktopResolution.width, desktopResolution.height)
 	}
 
 	static get main()
@@ -230,6 +230,11 @@ class Sphere
 	static get desktopResolution()
 	{
 		return desktopResolution
+	}
+
+	static audioEnabled()
+	{
+		return true
 	}
 }
 
