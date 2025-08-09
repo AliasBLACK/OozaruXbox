@@ -30,10 +30,11 @@
  *  POSSIBILITY OF SUCH DAMAGE.
 **/
 
-import { parseBMFont } from './bmfont.js';
+import { opentype } from './opentype.js'
 import Fido from './fido.js';
-import { Color, Shape, ShapeType, Texture } from './galileo.js';
+import { Color, Shape, ShapeType, Surface, Transform, VertexList } from './galileo.js';
 import Game from './game.js';
+import earcut from './earcut.js';
 
 var defaultFont;
 
@@ -42,17 +43,26 @@ class Fontso
 {
     static async initialize()
     {
-		defaultFont = await Font.fromFile('#/default.fnt');
+		defaultFont = await Font.fromFile('#/default.ttf');
     }
 }
+
+/**
+ * Font bezier curves to vertices by pat_lvl17.
+ * https://forum.babylonjs.com/t/fast-dynamic-3d-text-in-any-truetype-font/15770
+ */
+
+const MAX_BEZIER_STEPS = 10
+const BEZIER_STEP_SIZE = 20.0
 
 export
 class Font
 {
-	#fileName;
-	#glyphAtlas = [];
-	#glyphData = {};
-	#lineHeight = 0;
+	#font
+	#glyphs = {}
+	#lineHeight = 0
+	#scale = 0
+	#texture = new Surface(1, 1)
 
 	static get Default()
 	{
@@ -61,47 +71,107 @@ class Font
 
 	static async fromFile(...args)
 	{
-		const fileName = args.length > 1 ? `${args[0].split(".")[0]}-${args[1]}.fnt` : args[0];
-		const fontURL = Game.urlOf(fileName);
-		let data = await Fido.fetchText(fontURL);
-		data = parseBMFont(data);
-
-		// Create font.
-		let font = new Font();
-		font.#lineHeight = data.common.lineHeight;
-		font.#fileName = Game.fullPath(fileName);
-
-		// Load texture.
-		let folder = fileName.substring(0, fileName.lastIndexOf("/") + 1) || ""
-		for (const page of data.pages)
-			font.#glyphAtlas.push(await Texture.fromFile(`${folder}${page}`));
-
-		// Transcribe bmfont data.
-		for (const glyph of data.chars)
-			font.#glyphData[glyph.id] = {
-				width: glyph.width,
-				height: glyph.height,
-				xOffset: glyph.xoffset,
-				yOffset: glyph.yoffset,
-				xAdvance: glyph.xadvance,
-				atlasIndex: glyph.page,
-				u: glyph.x / font.#glyphAtlas[glyph.page].width,
-				v: 1.0 - glyph.y / font.#glyphAtlas[glyph.page].height,
-				u2: glyph.width / font.#glyphAtlas[glyph.page].width,
-				v2: glyph.height / font.#glyphAtlas[glyph.page].height
-			};
-		
-		// Return font.
-		return font;
-	}
-	get glyphAtlas()
-	{
-		return this.#glyphAtlas
+		let font = new Font()
+		font.#font = opentype.parse(await Fido.fetchData(Game.urlOf(args[0])))
+		let webglScale = args[2]?.webglScale ? args[2].webglScale : 1
+		font.#scale = (args[1] / font.#font.unitsPerEm) * webglScale
+		font.#lineHeight = (font.#font.ascender - font.#font.descender) * font.#scale
+		return font
 	}
 
-	get fileName()
+	createGlyph(cp)
 	{
-		return this.#fileName;
+		const glyph = this.#font.charToGlyph(String.fromCodePoint(cp))
+
+		if (glyph && glyph.advanceWidth)
+		{
+			this.#glyphs[cp] =
+			{
+				index: glyph.index,
+				advanceWidth: glyph.advanceWidth
+			}
+
+			if (glyph.path && glyph.path.commands && glyph.path.commands.length)
+			{
+				const polys = []
+				glyph.path.commands.forEach(({type, x, y, x1, y1, x2, y2}) => {
+					switch (type) {
+						case 'M':
+						polys.push(new TextMeshPolygon())
+						polys[polys.length - 1].moveTo({x, y})
+						break
+						case 'L':
+						polys[polys.length - 1].moveTo({x, y})
+						break
+						case 'C':
+						polys[polys.length - 1].cubicTo({x, y}, {x: x1, y: y1}, {x: x2, y: y2})
+						break
+						case 'Q':
+						polys[polys.length - 1].conicTo({x, y}, {x: x1, y: y1})
+						break
+						case 'Z':
+						polys[polys.length - 1].close()
+						break
+					}
+				})
+
+				// sort contours by descending area
+				polys.sort((a, b) => Math.abs(b.area) - Math.abs(a.area))
+
+				// classify contours to find holes and their 'parents'
+				const root = []
+
+				for (let i = 0; i < polys.length; ++i) {
+					let parent = null
+					for (let j = i - 1; j >= 0; --j) {
+						// a contour is a hole if it is inside its parent and has different winding
+						if (polys[j].inside(polys[i].points[0]) && polys[i].area * polys[j].area < 0 && !polys[j].hasParent) {
+						parent = polys[j]
+						break
+						}
+					}
+					if (parent) {
+						polys[i].hasParent = true
+						parent.children.push(polys[i])
+					} else {
+						root.push(polys[i])
+					}
+				}
+
+				const totalPoints = polys.reduce((sum, p) => sum + p.points.length, 0)
+				var vertices = []
+
+				// Process polys.
+				function process(poly, scale, ascender) {
+					const coords = []
+					const holes = []
+					poly.points.forEach(({x, y}) => coords.push(x, y))
+					poly.children.forEach(child => {
+
+						// Process holes as separate polys.
+						child.children.forEach(process, scale, ascender)
+						holes.push(coords.length / 2)
+						child.points.forEach(({x, y}) => coords.push(x, y))
+					})
+
+					// add vertex data
+					earcut(coords, holes).forEach(i => vertices.push({
+						x: coords[i * 2] * scale,
+						y: (ascender - coords[i * 2 + 1]) * scale
+					}))
+				}
+
+				root.forEach(i => process(i, this.#scale, this.#font.ascender))
+				
+				this.#glyphs[cp].mesh = new Shape(
+					ShapeType.Triangles,
+					this.#texture,
+					new VertexList(vertices)
+				)
+			}
+		}
+
+		return this.#glyphs[cp]
 	}
 
 	get height()
@@ -111,12 +181,13 @@ class Font
 
 	drawText(surface, x, y, text, color = Color.White, wrapWidth)
 	{
+		this.#texture.clear(color)		
 		text = text.toString();
 		const lines = wrapWidth !== undefined
 			? this.wordWrap(text, wrapWidth)
 			: [ text ];
 		for (let i = 0, len = lines.length; i < len; ++i)
-			this.#renderString(surface, x, y + i * this.#lineHeight, lines[i], color);
+			this.#renderString(surface, x, y + i * this.#lineHeight, lines[i]);
 	}
 
 	getTextSize(text, wrapWidth)
@@ -149,11 +220,30 @@ class Font
 		for (let ptr = 0; ptr < text.length; ptr++)
 		{
 			const cp = text.charCodeAt(ptr)
-			if (cp == 13) continue
-			if (!this.#glyphData[cp]) print(this.#fileName + ", " + text[ptr] + " (" + cp + "), " + text)
-			width += this.#glyphData[cp].xAdvance;
+			switch (cp)
+			{
+				case 13: case 10:
+					continue;
+				case 8:
+					width += this.getGlyph(32).advanceWidth * 3 * this.#scale;
+					continue;
+				case 32:
+					width += this.getGlyph(cp).advanceWidth * this.#scale;
+					continue;
+				default:
+					let glyph = this.getGlyph(cp)
+					let nextGlyph = ptr < text.length - 1 ? this.getGlyph(ptr + 1) : null
+					let kern = nextGlyph ? this.#font.getKerningValue(glyph.index, nextGlyph.index) : 0
+					width += (glyph.advanceWidth + kern) * this.#scale;
+					continue;
+			}
 		}
 		return width;
+	}
+
+	getGlyph(cp)
+	{
+		return this.#glyphs[cp] || this.createGlyph(cp)
 	}
 
 	wordWrap(text, wrapWidth)
@@ -169,7 +259,7 @@ class Font
 		for (let ptr = 0; ptr < text.length; ptr++)
 		{
 			const cp = text.charCodeAt(ptr)
-			const glyph = this.#glyphData[cp];
+			const glyph = this.getGlyph(cp);
 			switch (cp) {
 				case 13: case 10:  // newline
 					if (cp === 13 && text.codePointAt(ptr) == 10)
@@ -178,18 +268,19 @@ class Font
 					break;
 				case 8:  // tab
 					codepoints.push(cp);
-					wordWidth += this.#glyphData[32].width * 3;
+					wordWidth += this.getGlyph(32).advanceWidth * 3 * this.#scale;
 					wordFinished = true;
 					break;
 				case 32:  // space
 					codepoints.push(cp);
-					wordWidth += glyph.xAdvance;
+					wordWidth += glyph.advanceWidth * this.#scale;
 					wordFinished = true;
 					break;
 				default:
 					codepoints.push(cp);
-					if (!glyph) print(this.#fileName + ", " + text[ptr] + ", " + text)
-					wordWidth += glyph.xAdvance;
+					let nextGlyph = ptr < text.length - 1 ? this.getGlyph(ptr + 1) : null
+					let kern = nextGlyph ? this.#font.getKerningValue(glyph.index, nextGlyph.index) : 0
+					wordWidth += (glyph.advanceWidth + kern) * this.#scale;
 					break;
 			}
 			if (wordFinished || lineFinished) {
@@ -212,37 +303,122 @@ class Font
 		return lines;
 	}
 
-	#renderString(surface, x, y, text, color)
+	#renderString(surface, x, y, text)
 	{
 		x = Math.trunc(x);
         y = Math.trunc(y);
         if (text === "")
 			return;  // empty string, nothing to render
 		let xOffset = 0;
-		let vertices = {};
 		for (let ptr = 0; ptr < text.length; ptr++)
 		{
 			const cp = text.charCodeAt(ptr)
 			if (cp == 13) continue
-			const glyph = this.#glyphData[cp];
-			const x1 = x + xOffset + glyph.xOffset, x2 = x1 + glyph.width;
-			const y1 = y + glyph.yOffset, y2 = y1 + glyph.height;
-			const u1 = glyph.u;
-			const u2 = u1 + glyph.u2;
-			const v1 = glyph.v;
-			const v2 = v1 - glyph.v2;
-			vertices[glyph.atlasIndex] = vertices[glyph.atlasIndex] || []
-			vertices[glyph.atlasIndex].push(
-				{ x: x1, y: y1, u: u1, v: v1, color },
-				{ x: x2, y: y1, u: u2, v: v1, color },
-				{ x: x1, y: y2, u: u1, v: v2, color },
-				{ x: x2, y: y1, u: u2, v: v1, color },
-				{ x: x1, y: y2, u: u1, v: v2, color },
-				{ x: x2, y: y2, u: u2, v: v2, color },
-			);
-			xOffset += glyph.xAdvance;
+			const glyph = this.getGlyph(cp);
+			if (glyph.mesh)
+				glyph.mesh.draw(surface, Transform.translate(x + xOffset, y))
+
+			// Calculate advance.
+			let nextGlyph = ptr < text.length - 1 ? this.getGlyph(ptr + 1) : null
+			let kern = nextGlyph ? this.#font.getKerningValue(glyph.index, nextGlyph.index) : 0
+			xOffset += (glyph.advanceWidth + kern) * this.#scale
 		}
-		for (const atlasIndex of Object.keys(vertices))
-        	Shape.drawImmediate(surface, ShapeType.Triangles, this.#glyphAtlas[atlasIndex], vertices[atlasIndex]);
+	}
+}
+
+// class for converting path commands into point data
+class TextMeshPolygon
+{
+	points = []
+	children = []
+	hasParent = false
+	area = 0.0
+
+	distance(p1, p2)
+	{
+		const dx = p1.x - p2.x, dy = p1.y - p2.y
+		return Math.sqrt(dx * dx + dy * dy)
+	}
+
+	lerp(p1, p2, t)
+	{
+		return {x: (1 - t) * p1.x + t * p2.x, y: (1 - t) * p1.y + t * p2.y}
+	}
+
+	cross(p1, p2)
+	{
+		return p1.x * p2.y - p1.y * p2.x
+	}
+
+	moveTo(p)
+	{
+		this.points.push(p)
+	}
+
+	lineTo(p)
+	{
+		this.points.push(p)
+	}
+
+	close()
+	{
+		let cur = this.points[this.points.length - 1]
+
+		this.points.forEach(next =>
+		{
+			this.area += 0.5 * this.cross(cur, next)
+			cur = next
+		})
+	}
+
+	conicTo(p, p1)
+	{
+		const p0 = this.points[this.points.length - 1]
+		const dist = this.distance(p0, p1) + this.distance(p1, p)
+		const steps = Math.max(2, Math.min(MAX_BEZIER_STEPS, dist / BEZIER_STEP_SIZE))
+
+		for (let i = 1; i <= steps; ++i)
+		{
+			const t = i / steps
+			this.points.push(this.lerp(this.lerp(p0, p1, t), this.lerp(p1, p, t), t))
+		}
+	}
+
+	cubicTo(p, p1, p2)
+	{
+		const p0 = this.points[this.points.length - 1]
+		const dist = this.distance(p0, p1) + this.distance(p1, p2) + this.distance(p2, p)
+		const steps = Math.max(2, Math.min(MAX_BEZIER_STEPS, dist / BEZIER_STEP_SIZE))
+
+		for (let i = 1; i <= steps; ++i)
+		{
+			const t = i / steps
+			const a = this.lerp(this.lerp(p0, p1, t), this.lerp(p1, p2, t), t)
+			const b = this.lerp(this.lerp(p1, p2, t), this.lerp(p2, p, t), t)
+			this.points.push(this.lerp(a, b, t))
+		}
+	}
+
+	inside(p)
+	{
+		const epsilon = 1e-6
+		let count = 0, cur = this.points[this.points.length - 1]
+
+		this.points.forEach(next =>
+		{
+			const p0 = (cur.y < next.y ? cur : next)
+			const p1 = (cur.y < next.y ? next : cur)
+
+			if (p0.y < p.y + epsilon && p1.y > p.y + epsilon)
+			{
+				if ((p1.x - p0.x) * (p.y - p0.y) > (p.x - p0.x) * (p1.y - p0.y))
+				{
+					count++
+				}
+			}
+
+			cur = next
+		})
+		return (count % 2) !== 0
 	}
 }
