@@ -93,7 +93,7 @@ class Galileo
 {
 	static async initialize(canvas)
 	{
-		const webGLContext = canvas.getContext('webgl', { alpha: false });
+		const webGLContext = canvas.getContext('webgl2', { alpha: false });
 		if (webGLContext === null)
 			throw Error(`Couldn't acquire a WebGL rendering context.`);
 		gl = webGLContext;
@@ -1035,6 +1035,7 @@ class Surface extends Texture
 	#clipStack = [];
 	#depthOp = DepthOp.AlwaysPass;
 	#frameBuffer;
+	#msFrameBuffer;
 	#projection;
 
 	static get Screen()
@@ -1062,17 +1063,54 @@ class Surface extends Texture
 		// in order to set up a new FBO we need to change the current framebuffer binding, so make sure
 		// it gets changed back afterwards.
 		const previousFBO = gl.getParameter(gl.FRAMEBUFFER_BINDING);
+
+		// Normal framebuffer.
 		gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
 		gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.glHandle, 0);
+
+		// Multi-sample framebuffer.
+		this.#msFrameBuffer = gl.createFramebuffer();
+		gl.bindFramebuffer(gl.FRAMEBUFFER, this.#msFrameBuffer);
+
+		// Depth renderbuffer.
 		gl.bindRenderbuffer(gl.RENDERBUFFER, depthBuffer);
-		gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, this.width, this.height);
+		gl.renderbufferStorageMultisample(gl.RENDERBUFFER, 8, gl.DEPTH_COMPONENT16, this.width, this.height);
 		gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthBuffer);
+
+		// Multi-sample renderbuffer.
+		const msRenderBuffer = gl.createRenderbuffer();
+		gl.bindRenderbuffer(gl.RENDERBUFFER, msRenderBuffer);
+		gl.renderbufferStorageMultisample(gl.RENDERBUFFER, 8, gl.RGBA8, this.width, this.height);
+		gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, msRenderBuffer);
+
+		// Re-bind previous framebuffer.
 		gl.bindFramebuffer(gl.FRAMEBUFFER, previousFBO);
 
 		this.#frameBuffer = frameBuffer;
 		this.#projection = Transform.project2D(0, 0, this.width, this.height);
 
 		this.#computeClipping();
+	}
+
+	useTexture(textureUnit = 0)
+	{
+		// Make copy of current framebuffer.
+		const previousFBO = gl.getParameter(gl.FRAMEBUFFER_BINDING);
+
+		// Copy multi-sample framebuffer to normal framebuffer.
+		gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.#msFrameBuffer);
+		gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.#frameBuffer);
+		gl.blitFramebuffer(
+			0, 0, this.width, this.height,
+			0, 0, this.width, this.height,
+			gl.COLOR_BUFFER_BIT, gl.NEAREST
+		);
+
+		// Re-bind previous framebuffer.
+		gl.bindFramebuffer(gl.FRAMEBUFFER, previousFBO);
+
+		// Run superclass function.
+		super.useTexture(textureUnit);
 	}
 
 	get blendOp()
@@ -1112,7 +1150,7 @@ class Surface extends Texture
 	activate(shader, texture = null, transform = Transform.Identity)
 	{
 		if (this !== activeSurface) {
-			gl.bindFramebuffer(gl.FRAMEBUFFER, this.#frameBuffer);
+			gl.bindFramebuffer(gl.FRAMEBUFFER, this.#msFrameBuffer);
 			gl.viewport(0, 0, this.width, this.height);
 			gl.scissor(
 				this.#clipRectangle.x1,

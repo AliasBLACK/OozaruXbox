@@ -32,7 +32,7 @@
 
 import { opentype } from './opentype.js'
 import Fido from './fido.js';
-import { Color, Shape, ShapeType, Surface, Transform, VertexList } from './galileo.js';
+import { Color, Shape, ShapeType, Texture, Transform, VertexList } from './galileo.js';
 import Game from './game.js';
 import earcut from './earcut.js';
 
@@ -62,7 +62,7 @@ class Font
 	#glyphs = {}
 	#lineHeight = 0
 	#scale = 0
-	#texture = new Surface(1, 1)
+	#texture = new Texture(1, 1)
 
 	static get Default()
 	{
