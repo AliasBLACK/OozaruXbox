@@ -1113,6 +1113,22 @@ class Surface extends Texture
 		super.useTexture(textureUnit);
 	}
 
+	clear(color = Color.fromRGBA(0, 0, 0, 0))
+	{
+		// Make copy of current clear color and framebuffer.
+		const previousColor = gl.COLOR_CLEAR_VALUE;
+		const previousFBO = gl.getParameter(gl.FRAMEBUFFER_BINDING);
+
+		// Clear framebuffer to color.
+		gl.clearColor(color.r, color.g, color.b, color.a)
+		gl.bindFramebuffer(gl.FRAMEBUFFER, this.#msFrameBuffer);
+		gl.clear(gl.COLOR_BUFFER_BIT);
+
+		// Reset clear color and framebuffer.
+		gl.clearColor(previousColor[0], previousColor[1], previousColor[2], previousColor[3]);
+		gl.bindFramebuffer(gl.FRAMEBUFFER, previousFBO);
+	}
+
 	get blendOp()
 	{
 		return this.#blendOp;
