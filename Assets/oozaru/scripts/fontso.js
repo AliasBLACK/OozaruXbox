@@ -71,11 +71,19 @@ class Font
 
 	static async fromFile(...args)
 	{
+		// Load font.
 		let font = new Font()
 		font.#font = opentype.parse(await Fido.fetchData(Game.urlOf(args[0])))
+
+		// Font rendering scale.
 		let webglScale = args[2]?.webglScale ? args[2].webglScale : 1
 		font.#scale = (args[1] / font.#font.unitsPerEm) * webglScale
-		font.#lineHeight = (font.#font.ascender - font.#font.descender) * font.#scale
+
+		// Font lineHeight scale.
+		let webglHeightScale = args[2]?.webglHeightScale ? args[2].webglHeightScale : 1
+		font.#lineHeight = (font.#font.ascender - font.#font.descender) * font.#scale * webglHeightScale
+
+		// Return font object.
 		return font
 	}
 
@@ -225,16 +233,16 @@ class Font
 				case 13: case 10:
 					continue;
 				case 8:
-					width += this.getGlyph(32).advanceWidth * 3 * this.#scale;
+					width += Math.floor(this.getGlyph(32).advanceWidth * 3 * this.#scale);
 					continue;
 				case 32:
-					width += this.getGlyph(cp).advanceWidth * this.#scale;
+					width += Math.floor(this.getGlyph(cp).advanceWidth * this.#scale);
 					continue;
 				default:
 					let glyph = this.getGlyph(cp)
 					let nextGlyph = ptr < text.length - 1 ? this.getGlyph(ptr + 1) : null
 					let kern = nextGlyph ? this.#font.getKerningValue(glyph.index, nextGlyph.index) : 0
-					width += (glyph.advanceWidth + kern) * this.#scale;
+					width += Math.floor((glyph.advanceWidth + kern) * this.#scale);
 					continue;
 			}
 		}
@@ -268,19 +276,19 @@ class Font
 					break;
 				case 8:  // tab
 					codepoints.push(cp);
-					wordWidth += this.getGlyph(32).advanceWidth * 3 * this.#scale;
+					wordWidth += Math.floor(this.getGlyph(32).advanceWidth * 3 * this.#scale);
 					wordFinished = true;
 					break;
 				case 32:  // space
 					codepoints.push(cp);
-					wordWidth += glyph.advanceWidth * this.#scale;
+					wordWidth += Math.floor(glyph.advanceWidth * this.#scale);
 					wordFinished = true;
 					break;
 				default:
 					codepoints.push(cp);
 					let nextGlyph = ptr < text.length - 1 ? this.getGlyph(ptr + 1) : null
 					let kern = nextGlyph ? this.#font.getKerningValue(glyph.index, nextGlyph.index) : 0
-					wordWidth += (glyph.advanceWidth + kern) * this.#scale;
+					wordWidth += Math.floor((glyph.advanceWidth + kern) * this.#scale);
 					break;
 			}
 			if (wordFinished || lineFinished) {
