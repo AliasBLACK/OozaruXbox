@@ -52,6 +52,7 @@ class Mixer
 	#panNode;
 	#attachedMixers = [];
 	#parent;
+	#volume;
 
 	static get Default()
 	{
@@ -63,7 +64,7 @@ class Mixer
 		this.#audioContext = new AudioContext({ sampleRate });
 		this.#gainNode = this.#audioContext.createGain();
 		this.#panNode = this.#audioContext.createStereoPanner();
-		this.#gainNode.gain.value = 1.0;
+		this.#gainNode.gain.value = this.#volume = 1.0;
 		this.#gainNode
 			.connect(this.#panNode)
 			.connect(this.#audioContext.destination);
@@ -76,7 +77,7 @@ class Mixer
 
 	get volume()
 	{
-		return this.#gainNode.gain.value;
+		return this.#volume;
 	}
 
 	get parent()
@@ -91,9 +92,7 @@ class Mixer
 
 	set volume(value)
 	{
-		if (this.parent)
-			value *= this.parent.volume
-		this.#gainNode.gain.value = value;
+		this.updateVolume(value)
 	}
 
 	set parent(value)
@@ -104,6 +103,15 @@ class Mixer
 	get audioContext()
 	{
 		return this.#audioContext
+	}
+
+	updateVolume(value)
+	{
+		this.#volume = value
+		if (this.#parent)
+			value *= this.#parent.#gainNode.gain.value
+		this.#gainNode.gain.value = value;
+		this.#attachedMixers.forEach(child => child.updateVolume(child.volume))
 	}
 
 	attachAudio(audioElement)
@@ -117,7 +125,7 @@ class Mixer
 	{
 		const audioNode = this.#audioContext.createBufferSource();
 		audioNode.buffer = audioBuffer;
-		audioNode.connect(this.#audioContext.destination);
+		audioNode.connect(this.#gainNode)
 		return audioNode
 	}
 
@@ -129,19 +137,12 @@ class Mixer
 		return node;
 	}
 
-	attachMixer(mixer)
+	attachMixer(parent)
 	{
-		if (mixer.parent != null)
-			mixer.parent.unattachMixer(mixer)
-		mixer.parent = this
-		this.#attachedMixers.push(mixer)
-	}
-
-	unattachMixer(mixer)
-	{
-		if (this.#attachedMixers.includes(mixer))
-			this.#attachedMixers.splice(this.#attachedMixers.indexOf(mixer), 1)
-		mixer.parent = null
+		if (this.#parent != null)
+			this.#parent.#attachedMixers.splice(this.#parent.#attachedMixers.indexOf(this), 1)
+		this.#parent = parent
+		this.#parent.#attachedMixers.push(this)
 	}
 }
 
