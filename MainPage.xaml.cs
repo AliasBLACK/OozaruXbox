@@ -226,6 +226,13 @@ namespace OozaruXbox
                     WebView2.CoreWebView2.ExecuteScriptAsync("FileSaveHelperDropbox[\"" + parts[0] + "\"]()");
                 }
 
+                // Sphere.openURL
+                else if (msg.Contains("openURLHelper:"))
+                {
+                    string url = msg.Replace("openURLHelper:", "");
+                    Launcher.LaunchUriAsync(new Uri(url));
+                }
+
                 // Shutdown
                 else if (msg == "ShutdownHelper")
                     ApplicationView.GetForCurrentView().TryConsolidateAsync();

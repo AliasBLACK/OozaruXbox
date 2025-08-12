@@ -236,6 +236,11 @@ class Sphere
 	{
 		return true
 	}
+
+	static openURL(url)
+	{
+		print("openURLHelper:" + url)
+	}
 }
 
 class FS
