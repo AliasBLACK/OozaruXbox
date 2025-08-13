@@ -43,7 +43,7 @@ class Fontso
 {
     static async initialize()
     {
-		defaultFont = await Font.fromFile('#/default.ttf');
+		defaultFont = await Font.fromFile('#/default.ttf', 12);
     }
 }
 

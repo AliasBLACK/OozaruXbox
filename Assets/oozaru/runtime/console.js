@@ -58,9 +58,10 @@ class Console extends Task
 		this.cursorColor = Color.Gold;
 		this.entry = "";
 		this.font = Font.Default;
-		this.logger = options.logFileName !== null
-			? new Logger(options.logFileName)
-			: null;
+		this.logger = null;
+		// this.logger = options.logFileName !== null
+		// 	? new Logger(options.logFileName)
+		// 	: null;
 		this.keyboard = Keyboard.Default;
 		this.mouse = Mouse.Default;
 		this.mouseKey = options.mouseKey;
