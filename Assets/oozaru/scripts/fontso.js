@@ -234,13 +234,11 @@ class Font
 				case 13: case 10:  // newline
 					continue;
 				case 8:  // tab
-					width += Math.floor(this.getGlyph(32).advanceWidth * 3 * this.#scale);
+					width += Math.trunc(this.getGlyph(32).advanceWidth * 3 * this.#scale);
 					continue;
 				default:
 					let glyph = this.getGlyph(cp)
-					let nextGlyph = ptr < text.length - 1 ? this.getGlyph(ptr + 1) : null
-					let kern = nextGlyph ? this.#font.getKerningValue(glyph.index, nextGlyph.index) : 0
-					width += Math.floor((glyph.advanceWidth + kern) * this.#scale);
+					width += Math.trunc(glyph.advanceWidth * this.#scale);
 					continue;
 			}
 		}
@@ -274,16 +272,14 @@ class Font
 					break;
 				case 8:  // tab
 					codepoints.push(cp);
-					wordWidth += Math.floor(this.getGlyph(32).advanceWidth * 3 * this.#scale);
+					wordWidth += Math.trunc(this.getGlyph(32).advanceWidth * 3 * this.#scale);
 					wordFinished = true;
 					break;
 				case 32:  // space
 					wordFinished = true;
 				default:
 					codepoints.push(cp);
-					let nextGlyph = ptr < text.length - 1 ? this.getGlyph(ptr + 1) : null
-					let kern = nextGlyph ? this.#font.getKerningValue(glyph.index, nextGlyph.index) : 0
-					wordWidth += Math.floor((glyph.advanceWidth + kern) * this.#scale);
+					wordWidth += Math.trunc(glyph.advanceWidth * this.#scale);
 					break;
 			}
 			if (wordFinished || lineFinished) {
@@ -325,9 +321,7 @@ class Font
 			}
 
 			// Calculate advance.
-			let nextGlyph = ptr < text.length - 1 ? this.getGlyph(ptr + 1) : null
-			let kern = nextGlyph ? this.#font.getKerningValue(glyph.index, nextGlyph.index) : 0
-			xOffset += (glyph.advanceWidth + kern) * this.#scale
+			xOffset += Math.trunc(glyph.advanceWidth * this.#scale)
 		}
 	}
 }
