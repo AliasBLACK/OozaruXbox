@@ -54,6 +54,7 @@ class Fontso
 
 const MAX_BEZIER_STEPS = 10
 const BEZIER_STEP_SIZE = 20.0
+const FONT_TRANSFORM = new Transform()
 
 export
 class Font
@@ -318,7 +319,10 @@ class Font
 			if (cp == 13) continue
 			const glyph = this.getGlyph(cp);
 			if (glyph.mesh)
-				glyph.mesh.draw(surface, Transform.translate(x + xOffset, y))
+			{
+				FONT_TRANSFORM.identity().translate(x + xOffset, y)
+				glyph.mesh.draw(surface, FONT_TRANSFORM)
+			}
 
 			// Calculate advance.
 			let nextGlyph = ptr < text.length - 1 ? this.getGlyph(ptr + 1) : null
