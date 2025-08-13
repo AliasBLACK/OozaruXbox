@@ -230,13 +230,10 @@ class Font
 			const cp = text.charCodeAt(ptr)
 			switch (cp)
 			{
-				case 13: case 10:
+				case 13: case 10:  // newline
 					continue;
-				case 8:
+				case 8:  // tab
 					width += Math.floor(this.getGlyph(32).advanceWidth * 3 * this.#scale);
-					continue;
-				case 32:
-					width += Math.floor(this.getGlyph(cp).advanceWidth * this.#scale);
 					continue;
 				default:
 					let glyph = this.getGlyph(cp)
@@ -280,10 +277,7 @@ class Font
 					wordFinished = true;
 					break;
 				case 32:  // space
-					codepoints.push(cp);
-					wordWidth += Math.floor(glyph.advanceWidth * this.#scale);
 					wordFinished = true;
-					break;
 				default:
 					codepoints.push(cp);
 					let nextGlyph = ptr < text.length - 1 ? this.getGlyph(ptr + 1) : null
