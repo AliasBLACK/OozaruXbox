@@ -64,6 +64,7 @@ class Font
 	#lineHeight = 0
 	#scale = 0
 	#texture = new Texture(1, 1)
+	#webglYOffset = 0
 
 	static get Default()
 	{
@@ -77,12 +78,15 @@ class Font
 		font.#font = opentype.parse(await Fido.fetchData(Game.urlOf(args[0])))
 
 		// Font rendering scale.
-		let webglScale = args[2]?.webglScale ? args[2].webglScale : 1
+		let webglScale = args[2]?.webglScale || 1
 		font.#scale = (args[1] / font.#font.unitsPerEm) * webglScale
 
 		// Font lineHeight scale.
-		let webglHeightScale = args[2]?.webglHeightScale ? args[2].webglHeightScale : 1
+		let webglHeightScale = args[2]?.webglHeightScale || 1
 		font.#lineHeight = (font.#font.ascender - font.#font.descender) * font.#scale * webglHeightScale
+
+		// Y-Offset
+		font.#webglYOffset = args[2]?.webglYOffset || 0
 
 		// Return font object.
 		return font
@@ -170,7 +174,7 @@ class Font
 					}))
 				}
 
-				root.forEach(i => process(i, this.#scale, this.#font.ascender))
+				root.forEach(i => process(i, this.#scale, this.#font.ascender + this.#webglYOffset))
 				
 				this.#glyphs[cp].mesh = new Shape(
 					ShapeType.Triangles,
