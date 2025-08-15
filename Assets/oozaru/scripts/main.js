@@ -53,6 +53,7 @@ async function main()
 	// try-catch.  otherwise the debugger thinks the error is handled and doesn't do a breakpoint,
 	// making diagnosing bugs in the engine harder than necessary.
 	globalThis.global = globalThis
+	global.isXbox = navigator.userAgent.includes("WebView2")
 	window.addEventListener('error', (e) => {
 		reportException(e.error)
 	})

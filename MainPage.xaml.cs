@@ -166,6 +166,9 @@ namespace OozaruXbox
                 accessKind: CoreWebView2HostResourceAccessKind.Allow
             );
 
+            // Set user agent to include WebView2.
+            WebView2.CoreWebView2.Settings.UserAgent = WebView2.CoreWebView2.Settings.UserAgent + " WebView2";
+
             // Handle messages received from WebView2.
             WebView2.CoreWebView2.WebMessageReceived += async (s, e) =>
             {
