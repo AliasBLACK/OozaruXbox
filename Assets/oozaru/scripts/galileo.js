@@ -1074,13 +1074,13 @@ class Surface extends Texture
 
 		// Depth renderbuffer.
 		gl.bindRenderbuffer(gl.RENDERBUFFER, depthBuffer);
-		gl.renderbufferStorageMultisample(gl.RENDERBUFFER, 8, gl.DEPTH_COMPONENT16, this.width, this.height);
+		gl.renderbufferStorageMultisample(gl.RENDERBUFFER, 4, gl.DEPTH_COMPONENT16, this.width, this.height);
 		gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthBuffer);
 
 		// Multi-sample renderbuffer.
 		const msRenderBuffer = gl.createRenderbuffer();
 		gl.bindRenderbuffer(gl.RENDERBUFFER, msRenderBuffer);
-		gl.renderbufferStorageMultisample(gl.RENDERBUFFER, 8, gl.RGBA8, this.width, this.height);
+		gl.renderbufferStorageMultisample(gl.RENDERBUFFER, 4, gl.RGBA8, this.width, this.height);
 		gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, msRenderBuffer);
 
 		// Re-bind previous framebuffer.
