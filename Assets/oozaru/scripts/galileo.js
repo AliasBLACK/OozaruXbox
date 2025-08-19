@@ -93,7 +93,7 @@ class Galileo
 {
 	static async initialize(canvas)
 	{
-		const webGLContext = canvas.getContext('webgl2', { alpha: false });
+		const webGLContext = canvas.getContext('webgl2');
 		if (webGLContext === null)
 			throw Error(`Couldn't acquire a WebGL rendering context.`);
 		gl = webGLContext;

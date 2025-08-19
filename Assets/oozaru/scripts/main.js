@@ -32,15 +32,18 @@
 
 import Audialis from './audialis.js'
 import Fontso from './fontso.js'
-import Galileo from './galileo.js'
+import Galileo, { Texture } from './galileo.js'
 import InputEngine from './input-engine.js'
 import Pegasus from './pegasus.js'
+import PrimNative from './primNative.js'
 import Version from './version.js'
 
 globalThis.print = function(string)
 {
-	if (typeof string == "string")
-		window.chrome.webview.postMessage(string)
+	string = String(string)
+	isXbox ?
+		window.chrome.webview.postMessage(string) :
+		console.log(string)
 }
 
 main()
@@ -48,12 +51,27 @@ main()
 async function main()
 {
 	await Version.initialize()
+	globalThis.global = globalThis
+
+	// Detect if this is the Xbox WebView2 build or HTML5 build.
+	global.isXbox = navigator.userAgent.includes("WebView2")
+	if (!isXbox)
+	{
+		global.desktopResolution = window.innerWidth * 0.5625 <= window.innerHeight ?
+		{
+			width: window.innerWidth,
+			height: window.innerWidth * 0.5625
+		} :
+		{
+			height: window.innerHeight,
+			width: window.innerHeight * 1.7778
+		}
+		global.directories = (await import('../directories.js')).default
+	}
 
 	// use event handling to intercept errors originating inside the Sphere sandbox, rather than a
 	// try-catch.  otherwise the debugger thinks the error is handled and doesn't do a breakpoint,
 	// making diagnosing bugs in the engine harder than necessary.
-	globalThis.global = globalThis
-	global.isXbox = navigator.userAgent.includes("WebView2")
 	window.addEventListener('error', (e) => {
 		reportException(e.error)
 	})
@@ -66,6 +84,7 @@ async function main()
 	await Fontso.initialize()
 	InputEngine.initialize(canvas)
 	Pegasus.initialize()
+	PrimNative.initialize()
 	await Pegasus.launchGame('dist')
 	print("Event:GameLoaded")
 }

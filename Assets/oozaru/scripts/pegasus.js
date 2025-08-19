@@ -255,6 +255,8 @@ class File
 {
 	static async exists(fileName)
 	{
+		if (!isXbox)
+			return Promise.resolve(true)
 		return new Promise(resolve => {
 			return new Promise(fileExistHelperPromise => {
 				FileExistsHelperDropbox[fileName] = fileExistHelperPromise
@@ -268,6 +270,18 @@ class File
 
 	static async load(fileName, dataType = DataType.Text)
 	{
+		// If loading from LocalStorage on HTML5.
+		if (!isXbox && fileName.charAt(0) == "~")
+		{
+			if (dataType != DataType.Bytes && dataType != DataType.Text)
+				throw Error("Unable to load data type from LocalStorage. Please use only DataType.Text or DataType.Bytes.")
+
+			let result = localStorage.getItem(fileName.replace("~/", ""))
+			if (dataType == DataType.Bytes) result = Uint8Array.fromBase64(result)
+			return Promise.resolve(result)
+		}
+
+		// Else, load as normal.
 		const url = Game.urlOf(fileName);
 		switch (dataType) {
 			case DataType.Bytes:
@@ -315,6 +329,15 @@ class File
 
 	static async save(fileName, data)
 	{
+		// If HTML5, save to LocalStorage (if any)
+		if (!isXbox && typeof(Storage) !== "undefined")
+		{
+			if (data instanceof Uint8Array) data = data.toBase64()
+			localStorage.setItem(fileName.replace("~/",""), data)
+			return Promise.resolve()
+		}
+
+		// Else, use C# helpers in UWP build.
 		return new Promise(resolve => {
 			return new Promise(FileSaveHelperPromise => {
 				FileSaveHelperDropbox[fileName] = FileSaveHelperPromise
@@ -404,6 +427,17 @@ class DirectoryStream
 
 	static async fromURL(path)
 	{
+		// If HTML5 build, use directories.js pre-built directory.
+		if (!isXbox)
+		{
+			path = path.charAt(path.length - 1) == "/" ? path.substring(0, path.length - 1) : path
+			if (!(path in directories)) print(`Path ${path} not found in directories.`)
+			let directoryStream = new DirectoryStream(directories[path])
+			directoryStream.fileName = path
+			return Promise.resolve(directoryStream)
+		}
+
+		// Else, use C# helpers in UWP build.
 		return new Promise(resolve => {
 			new Promise(directoryHelperPromise => {
 				DirectoryHelperDropbox[path] = directoryHelperPromise

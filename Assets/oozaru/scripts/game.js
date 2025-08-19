@@ -100,7 +100,7 @@ class Game
 	static async launch()
 	{
 		document.title = `${Game.manifest.name} - ${Version.engine}`;
-		Galileo.rerez(window.innerWidth, window.innerHeight);
+		if (isXbox) Galileo.rerez(window.innerWidth, window.innerHeight);
 
 		// load and execute the game's main module.  if it exports a startup
 		// function or class, call it.
@@ -126,8 +126,16 @@ class Game
 			return `${this.rootPath}/${hops.join('/')}`;
 		}
 		else if (hops[0] === '~') {
-			hops.splice(0, 1);
-			return `https://userFolder.oozaru/${hops.join("/")}`;
+			if (isXbox)
+			{
+				hops.splice(0, 1);
+				return `https://userFolder.oozaru/${hops.join("/")}`;
+			}
+			else
+			{
+				print("Returning: " + pathName)
+				return pathName;
+			}
 		}
 		else if (hops[0] === '#') {
 			hops.splice(0, 1);
