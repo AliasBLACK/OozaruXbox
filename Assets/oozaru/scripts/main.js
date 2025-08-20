@@ -32,10 +32,9 @@
 
 import Audialis from './audialis.js'
 import Fontso from './fontso.js'
-import Galileo, { Texture } from './galileo.js'
+import Galileo from './galileo.js'
 import InputEngine from './input-engine.js'
 import Pegasus from './pegasus.js'
-import PrimNative from './primNative.js'
 import Version from './version.js'
 
 globalThis.print = function(string)
@@ -84,7 +83,6 @@ async function main()
 	await Fontso.initialize()
 	InputEngine.initialize(canvas)
 	Pegasus.initialize()
-	PrimNative.initialize()
 	await Pegasus.launchGame('dist')
 	print("Event:GameLoaded")
 }
