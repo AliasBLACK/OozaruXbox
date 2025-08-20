@@ -5,7 +5,7 @@ setlocal EnableExtensions EnableDelayedExpansion
 set "ROOT=%~1"
 if "%ROOT%"=="" set "ROOT=%CD%"
 set "OUT=%~2"
-if "%OUT%"=="" set "OUT=%CD%\directories.js"
+if "%OUT%"=="" set "OUT=%CD%\staging\directories.js"
 
 pushd "%ROOT%" >nul 2>&1 || (echo [ERROR] Can't cd into "%ROOT%". & exit /b 1)
 

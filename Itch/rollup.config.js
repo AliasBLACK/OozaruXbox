@@ -6,7 +6,7 @@ export default {
 	input: '../Assets/oozaru/dist/scripts/core/main.js',
 	output: [
 		{
-			file: 'dist/scripts/core/main.js',
+			file: 'main.js',
 			format: 'es',
 			plugins: [terser({
 				mangle: {

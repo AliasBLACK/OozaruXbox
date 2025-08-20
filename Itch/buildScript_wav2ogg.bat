@@ -2,7 +2,7 @@
 setlocal EnableDelayedExpansion
 
 :: === Usage ===
-:: wav2ogg.bat "C:\input\wav" "C:\output\ogg"
+:: buildScript_wav2ogg.bat "C:\input\wav" "C:\output\ogg"
 
 if "%~1"=="" (
     echo [ERROR] Please provide an input folder.
@@ -24,7 +24,7 @@ if not exist "%OUT%" (
     mkdir "%OUT%"
 )
 
-:: Iterate over WAV files in input folder
+:: Convert WAV files
 for %%F in ("%IN%\*.wav") do (
     set "FILENAME=%%~nF"
     set "OUTFILE=%OUT%\!FILENAME!.ogg"
@@ -34,8 +34,13 @@ for %%F in ("%IN%\*.wav") do (
     ) else (
         echo Converting "%%~nxF" to "!OUTFILE!"
         ffmpeg -y -i "%%F" -c:a libvorbis "!OUTFILE!"
+        if errorlevel 1 (
+            echo [ERROR] Failed to convert "%%~nxF"
+            exit /b 1
+        )
     )
 )
 
 echo Done.
 endlocal
+exit /b 0

@@ -4,6 +4,5 @@ Assets/oozaru/dist
 .vs
 Itch/directories.js
 Itch/glyphica.zip
-Itch/dist/scripts/core
-Itch/dist/scripts/data
-Itch/dist/sounds
+Itch/sounds
+Itch/staging
