@@ -32,7 +32,7 @@
 
 import { opentype } from './opentype.js'
 import Fido from './fido.js';
-import { Color, Shape, ShapeType, Texture, Transform, VertexList } from './galileo.js';
+import { Shape, ShapeType, Texture, Transform, VertexList } from './galileo.js';
 import Game from './game.js';
 import earcut from './earcut.js';
 
@@ -201,15 +201,15 @@ class Font
 		return this.#lineHeight;
 	}
 
-	drawText(surface, x, y, text, color = Color.White, wrapWidth)
+	drawText(surface, x, y, text, color, wrapWidth, scale = 1)
 	{
 		this.#texture.clear(color)		
 		text = text.toString();
 		const lines = wrapWidth !== undefined
-			? this.wordWrap(text, wrapWidth)
-			: [ text ];
+			? this.wordWrap(text, wrapWidth, scale)
+			: text.split("\n");
 		for (let i = 0, len = lines.length; i < len; ++i)
-			this.#renderString(surface, x, y + i * this.#lineHeight, lines[i]);
+			this.#renderString(surface, x, y + i * this.#lineHeight * scale, lines[i], scale);
 	}
 
 	getTextSize(text, wrapWidth)
@@ -263,7 +263,7 @@ class Font
 		return this.#glyphs[cp] || this.createGlyph(cp)
 	}
 
-	wordWrap(text, wrapWidth)
+	wordWrap(text, wrapWidth, scale = 1)
 	{
 		text = text.toString();
 		const lines = [];
@@ -285,14 +285,14 @@ class Font
 					break;
 				case 8:  // tab
 					codepoints.push(cp);
-					wordWidth += Math.trunc(this.getGlyph(32).advanceWidth * 3 * this.#scale);
+					wordWidth += Math.trunc(this.getGlyph(32).advanceWidth * 3 * this.#scale * scale);
 					wordFinished = true;
 					break;
 				case 32:  // space
 					wordFinished = true;
 				default:
 					codepoints.push(cp);
-					wordWidth += Math.trunc(glyph.advanceWidth * this.#scale);
+					wordWidth += Math.trunc(glyph.advanceWidth * this.#scale * scale);
 					break;
 			}
 			if (wordFinished || lineFinished) {
@@ -315,7 +315,7 @@ class Font
 		return lines;
 	}
 
-	#renderString(surface, x, y, text)
+	#renderString(surface, x, y, text, scale = 1)
 	{
 		x = Math.trunc(x);
         y = Math.trunc(y);
@@ -329,12 +329,14 @@ class Font
 			const glyph = this.getGlyph(cp);
 			if (glyph.mesh)
 			{
-				FONT_TRANSFORM.identity().translate(x + xOffset, y)
+				FONT_TRANSFORM.identity()
+				if (scale != 1) FONT_TRANSFORM.scale(scale, scale)
+				FONT_TRANSFORM.translate(x + xOffset, y)
 				glyph.mesh.draw(surface, FONT_TRANSFORM)
 			}
 
 			// Calculate advance.
-			xOffset += Math.trunc(glyph.advanceWidth * this.#scale)
+			xOffset += Math.trunc(glyph.advanceWidth * this.#scale * scale)
 		}
 	}
 }
