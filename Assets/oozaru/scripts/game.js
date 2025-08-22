@@ -100,7 +100,6 @@ class Game
 	static async launch()
 	{
 		document.title = `${Game.manifest.name} - ${Version.engine}`;
-		if (isXbox) Galileo.rerez(window.innerWidth, window.innerHeight);
 
 		// load and execute the game's main module.  if it exports a startup
 		// function or class, call it.
