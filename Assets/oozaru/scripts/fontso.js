@@ -47,6 +47,15 @@ class Fontso
     }
 }
 
+// Cache loaded fonts to re-use them.
+const LOADED_FONTS = {}
+async function parseFont(url)
+{
+	if (!(url in LOADED_FONTS))
+		LOADED_FONTS[url] = opentype.parse(await Fido.fetchData(Game.urlOf(url)))
+	return LOADED_FONTS[url]
+}
+
 /**
  * Font bezier curves to vertices by pat_lvl17.
  * https://forum.babylonjs.com/t/fast-dynamic-3d-text-in-any-truetype-font/15770
@@ -75,7 +84,7 @@ class Font
 	{
 		// Load font.
 		let font = new Font()
-		font.#font = opentype.parse(await Fido.fetchData(Game.urlOf(args[0])))
+		font.#font = await parseFont(args[0])
 
 		// Font rendering scale.
 		let webglScale = args[2]?.webglScale || 1
