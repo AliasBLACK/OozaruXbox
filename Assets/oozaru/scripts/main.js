@@ -54,17 +54,10 @@ async function main()
 
 	// Detect if this is the Xbox WebView2 build or HTML5 build.
 	global.isXbox = navigator.userAgent.includes("WebView2")
-	if (!isXbox)
+	if (!isXbox) // If HTML5.
 	{
-		global.desktopResolution = window.innerWidth * 0.5625 <= window.innerHeight ?
-		{
-			width: window.innerWidth,
-			height: window.innerWidth * 0.5625
-		} :
-		{
-			height: window.innerHeight,
-			width: window.innerHeight * 1.7778
-		}
+		global.HTML5_GetOptimalGameWindowDimensions = HTML5_GetOptimalGameWindowDimensions
+		global.desktopResolution = HTML5_GetOptimalGameWindowDimensions()
 		global.directories = (await import('../directories.js')).default
 	}
 
@@ -77,6 +70,8 @@ async function main()
 	window.addEventListener('unhandledrejection', (e) => {
 		reportException(e.reason)
 	})
+	if (!isXbox)
+		window.addEventListener('resize', resizeEvent)
 	const canvas = document.getElementById('screen')
 	await Galileo.initialize(canvas)
 	await Audialis.initialize()
@@ -87,6 +82,12 @@ async function main()
 	print("Event:GameLoaded")
 }
 
+function resizeEvent()
+{
+	let gameWindowResolution = HTML5_GetOptimalGameWindowDimensions()
+	Galileo.rerez(gameWindowResolution.width, gameWindowResolution.height)
+}
+
 function reportException(thrownValue)
 {
 	print((
@@ -95,4 +96,17 @@ function reportException(thrownValue)
 		) ?
 			thrownValue.stack :
 			String(thrownValue))
+}
+
+function HTML5_GetOptimalGameWindowDimensions()
+{
+	return window.innerWidth * 0.5625 <= window.innerHeight ?
+	{
+		width: window.innerWidth,
+		height: window.innerWidth * 0.5625
+	} :
+	{
+		height: window.innerHeight,
+		width: window.innerHeight * 1.7778
+	}
 }
