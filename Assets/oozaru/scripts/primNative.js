@@ -27,8 +27,10 @@ class PrimNative
 	{
 		let findInnerCoord = function(x, y, leftX, leftY, rightX, rightY)
 		{
-			let leftOffset = PrimNative.normalize(leftX - x, leftY - y) * thickness
-			let rightOffset = PrimNative.normalize(rightX - x, rightY - y) * thickness
+			let leftOffset = PrimNative.normalize(leftX - x, leftY - y)
+			leftOffset = { x: leftOffset.x * thickness, y: leftOffset.y * thickness }
+			let rightOffset = PrimNative.normalize(rightX - x, rightY - y)
+			rightOffset = { x: rightOffset.x * thickness, y: rightOffset.y * thickness }
 			return { x: x + leftOffset.x + rightOffset.x, y: y + leftOffset.y + rightOffset.y }
 		}
 		let inner1 = { ...findInnerCoord(x1, y1, x3, y3, x2, y2), color: color }
