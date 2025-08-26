@@ -126,8 +126,8 @@ class Pegasus
 				? `${Math.floor(100.0 * Fido.progress)}% - ${Fido.numJobs} files`
 				: `loading ${Fido.numJobs} files`;
 			const textSize = Font.Default.getTextSize(status);
-			const x = Surface.Screen.width - textSize.width - 5;
-			const y = Surface.Screen.height - textSize.height - 5;
+			const x = Surface.Screen.width / 2 - textSize.width / 2;
+			const y = Surface.Screen.height / 2 - textSize.height / 2;
 			Font.Default.drawText(Surface.Screen, x + 1, y + 1, status, Color.Black);
 			Font.Default.drawText(Surface.Screen, x, y, status, Color.Silver);
 		}, {
