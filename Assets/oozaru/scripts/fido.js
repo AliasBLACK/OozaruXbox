@@ -36,6 +36,10 @@ var totalJobsCompleted = 0;
 var pendingFetches = [];
 var debounceTimer = null;
 const DEBOUNCE_DELAY = 100; // milliseconds
+const MAX_CONCURRENT_REQUESTS = 6; // Maximum parallel requests
+const INITIAL_RETRY_DELAY = 1000; // Initial retry delay in ms
+const MAX_RETRIES = 3; // Maximum retry attempts
+var activeRequests = 0;
 
 export default
 class Fido
@@ -86,22 +90,59 @@ class Fido
 		pendingFetches.length = 0;
 		debounceTimer = null;
 		
-		// Process all pending fetches
+		// Process fetches with concurrency limit
 		for (const { url, resolve, reject } of fetchesToProcess) {
-			try {
-				const blob = await this.performFetch(url);
-				resolve(blob);
-			} catch (error) {
-				reject(error);
+			// Wait if we've hit the concurrent request limit
+			while (activeRequests >= MAX_CONCURRENT_REQUESTS) {
+				await new Promise(r => setTimeout(r, 50));
 			}
+			
+			// Process fetch without blocking the loop
+			this.performFetchWithRetry(url, 0)
+				.then(resolve)
+				.catch(reject);
+		}
+	}
+
+	static async performFetchWithRetry(url, retryCount = 0)
+	{
+		// Track active requests only on first call
+		const isFirstAttempt = retryCount === 0;
+		if (isFirstAttempt) {
+			activeRequests++;
+		}
+		
+		try {
+			const result = await this.performFetch(url);
+			if (isFirstAttempt) {
+				activeRequests--;
+			}
+			return result;
+		} catch (error) {
+			// Check if it's a 429 error and we haven't exceeded max retries
+			if (error.status === 429 && retryCount < MAX_RETRIES) {
+				const delay = INITIAL_RETRY_DELAY * Math.pow(2, retryCount);
+				console.warn(`Rate limited on ${url}, retrying in ${delay}ms (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+				await new Promise(resolve => setTimeout(resolve, delay));
+				// Retry - this will handle its own activeRequests tracking
+				return this.performFetchWithRetry(url, retryCount + 1);
+			}
+			// Failed permanently, decrement counter
+			if (isFirstAttempt) {
+				activeRequests--;
+			}
+			throw error;
 		}
 	}
 
 	static async performFetch(url)
 	{
 		const response = await fetch(url);
-		if (!response.ok || response.body === null)
-			throw Error(`Couldn't fetch the file '${url}'. (HTTP ${response.status})`);
+		if (!response.ok || response.body === null) {
+			const error = Error(`Couldn't fetch the file '${url}'. (HTTP ${response.status})`);
+			error.status = response.status;
+			throw error;
+		}
 		const job = {
 			url,
 			bytesDone: 0,
