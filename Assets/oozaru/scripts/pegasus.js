@@ -268,7 +268,10 @@ class Sphere
 
 	static openURL(url)
 	{
-		print("openURLHelper:" + url)
+		if (!isXbox)
+			window.open(url, "_blank")
+		else
+			print("openURLHelper:" + url)
 	}
 }
 
