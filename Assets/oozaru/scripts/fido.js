@@ -31,13 +31,18 @@
 **/
 
 var jobs = [];
+var totalJobsStarted = 0;
+var totalJobsCompleted = 0;
+var pendingFetches = [];
+var debounceTimer = null;
+const DEBOUNCE_DELAY = 100; // milliseconds
 
 export default
 class Fido
 {
 	static get numJobs()
 	{
-		return jobs.length;
+		return totalJobsStarted - totalJobsCompleted;
 	}
 
 	static get progress()
@@ -50,10 +55,49 @@ class Fido
 			bytesTotal += job.totalSize;
 			bytesDone += job.bytesDone;
 		}
-		return bytesTotal > 0 ? bytesDone / bytesTotal : 1.0;
+		let partial = bytesTotal > 0 ? Math.min(1.0, bytesDone / bytesTotal) : 0;
+		return this.numJobs > 0 ?
+			(partial + totalJobsCompleted) / totalJobsStarted :
+			1.0;
 	}
 
 	static async fetch(url)
+	{
+		// Add to pending queue and reset debounce timer
+		return new Promise((resolve, reject) => {
+
+			// If add to pending queue
+			totalJobsStarted++;
+			pendingFetches.push({ url, resolve, reject });
+			
+			// Clear existing timer and set new one
+			if (debounceTimer !== null)
+				clearTimeout(debounceTimer);
+			
+			debounceTimer = setTimeout(() => {
+				this.processPendingFetches();
+			}, DEBOUNCE_DELAY);
+		});
+	}
+
+	static async processPendingFetches()
+	{
+		const fetchesToProcess = [...pendingFetches];
+		pendingFetches.length = 0;
+		debounceTimer = null;
+		
+		// Process all pending fetches
+		for (const { url, resolve, reject } of fetchesToProcess) {
+			try {
+				const blob = await this.performFetch(url);
+				resolve(blob);
+			} catch (error) {
+				reject(error);
+			}
+		}
+	}
+
+	static async performFetch(url)
 	{
 		const response = await fetch(url);
 		if (!response.ok || response.body === null)
@@ -78,6 +122,7 @@ class Fido
 			}
 			job.finished = result.done;
 		}
+		totalJobsCompleted++;
 		let allDone = true;
 		for (const job of jobs)
 			allDone = allDone && job.finished;

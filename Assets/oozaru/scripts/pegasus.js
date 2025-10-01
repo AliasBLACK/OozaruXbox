@@ -119,17 +119,46 @@ class Pegasus
 		// load the game's JSON manifest
 		await Game.initialize(rootPath);
 
+		let hasStartedLoading = false;
+		let loadingComplete = false;
+
 		Dispatch.onRender(() => {
-			if (Fido.numJobs === 0)
+			if (Fido.numJobs > 0)
+				hasStartedLoading = true;
+			if (hasStartedLoading && Fido.numJobs === 0)
+				loadingComplete = true;
+			
+			if (!hasStartedLoading || loadingComplete)
 				return;
+			
+			// Draw progress bar
+			const barWidth = 400;
+			const barHeight = 30;
+			const barX = Surface.Screen.width / 2 - barWidth / 2;
+			const barY = Surface.Screen.height / 2 - barHeight / 2;
+			
+			// Draw background (border)
+			PrimNative.drawFilledRectangle(Surface.Screen, barX - 2, barY - 2, barX + barWidth + 2, barY + barHeight + 2, Color.DarkGray);
+			
+			// Draw inner background
+			PrimNative.drawFilledRectangle(Surface.Screen, barX, barY, barX + barWidth, barY + barHeight, Color.Black);
+			
+			// Draw progress fill
+			const progress = Fido.progress < 1.0 ? Fido.progress : 0;
+			const fillWidth = barWidth * progress;
+			if (fillWidth > 0) {
+				PrimNative.drawFilledRectangle(Surface.Screen, barX, barY, barX + fillWidth, barY + barHeight, Color.DarkGray);
+			}
+			
+			// Draw percentage text on top of the bar
 			const status = Fido.progress < 1.0
-				? `${Math.floor(100.0 * Fido.progress)}% - ${Fido.numJobs} files`
-				: `loading ${Fido.numJobs} files`;
+				? `${Math.floor(100.0 * Fido.progress)}%`
+				: `Loading...`;
 			const textSize = Font.Default.getTextSize(status);
-			const x = Surface.Screen.width / 2 - textSize.width / 2;
-			const y = Surface.Screen.height / 2 - textSize.height / 2;
-			Font.Default.drawText(Surface.Screen, x + 1, y + 1, status, Color.Black);
-			Font.Default.drawText(Surface.Screen, x, y, status, Color.Silver);
+			const textX = Surface.Screen.width / 2 - textSize.width / 2;
+			const textY = barY + barHeight / 2 - textSize.height / 2;
+			Font.Default.drawText(Surface.Screen, textX + 1, textY + 1, status, Color.Black);
+			Font.Default.drawText(Surface.Screen, textX, textY, status, Color.White);
 		}, {
 			inBackground: true,
 			priority: Infinity,
