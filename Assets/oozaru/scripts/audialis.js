@@ -31,6 +31,7 @@
 **/
 
 import { Deque } from './deque.js';
+import Fido from './fido.js';
 import Game from './game.js';
 
 var defaultMixer = null;
@@ -157,6 +158,8 @@ class Sound
 	static async fromFile(fileName)
 	{
 		const url = Game.urlOf(fileName);
+		const blob = await Fido.fetch(url);
+		const blobUrl = URL.createObjectURL(blob);
 		const audioElement = new Audio();
 		await new Promise((resolve, reject) => {
 			audioElement.onloadedmetadata = () => {
@@ -165,7 +168,7 @@ class Sound
 			audioElement.onerror = () => {
 				reject(Error(`Couldn't load audio file '${url}'.`));
 			};
-			audioElement.src = url;
+			audioElement.src = blobUrl;
 		});
 		const sound = new Sound(audioElement);
 		sound.#fileName = Game.fullPath(fileName);
@@ -276,13 +279,13 @@ class Sample
 
 	static async fromFile(fileName)
 	{
-		const data = await fetch(Game.urlOf(fileName))
-		const arrayBuffer = await data.arrayBuffer()
-		const audioBuffer = await Mixer.Default.audioContext.decodeAudioData(arrayBuffer)
+		const url = Game.urlOf(fileName);
+		const arrayBuffer = await Fido.fetchData(url);
+		const audioBuffer = await Mixer.Default.audioContext.decodeAudioData(arrayBuffer);
 
-		let sample = new Sample(audioBuffer)
-		sample.#filename = Game.fullPath(fileName)
-		return sample
+		let sample = new Sample(audioBuffer);
+		sample.#filename = Game.fullPath(fileName);
+		return sample;
 	}
 	constructor(source) { this.#audioBuffer = source }
 	get fileName() { return this.#filename }
