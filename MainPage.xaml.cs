@@ -1,5 +1,6 @@
-﻿using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.Core;
 using Microsoft.Xbox.Services;
+using Microsoft.Xbox.Services.System;
 using System;
 using System.Diagnostics;
 using System.Collections.Generic;
@@ -12,6 +13,7 @@ using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Input;
 using Windows.UI.ViewManagement;
+using Windows.UI.Core;
 using Windows.System;
 using Windows.Storage;
 using Windows.ApplicationModel;
@@ -28,6 +30,7 @@ namespace OozaruXbox
     public sealed partial class MainPage : Page
     {
         private bool _ready = false;
+        private XboxLiveUser _xboxUser;
 
         static private string ConvertVirtualKeyToJS(VirtualKey key)
         {
@@ -182,6 +185,9 @@ namespace OozaruXbox
                         case "GameLoaded":
                             Debug.WriteLine("Event: GameLoaded");
                             _ready = true;
+                            // Run Xbox login without blocking (only if Xbox services are enabled in Partner Center)
+                            // _ = InitializeXboxLogin();
+                            Debug.WriteLine("Xbox login disabled - enable Xbox services in Partner Center and uncomment InitializeXboxLogin()");
                             break;
                     }
                 }
@@ -268,6 +274,96 @@ namespace OozaruXbox
                 path = path.Replace("~/", "").Replace("~", "");
                 return path == "" ? ApplicationData.Current.LocalFolder : await ApplicationData.Current.LocalFolder.GetFolderAsync(path);
             }
+        }
+
+        private async Task InitializeXboxLogin()
+        {
+            await Task.Delay(100); // Small delay to ensure we're off the critical path
+            
+            try
+            {
+                Debug.WriteLine("Initializing Xbox Live login...");
+                
+                // Wrap in another try-catch for the constructor
+                try
+                {
+                    _xboxUser = new XboxLiveUser();
+                    Debug.WriteLine("XboxLiveUser created");
+                }
+                catch (Exception createEx)
+                {
+                    Debug.WriteLine($"Failed to create XboxLiveUser: {createEx.GetType().Name}");
+                    Debug.WriteLine($"Message: {createEx.Message}");
+                    Debug.WriteLine($"HRESULT: {createEx.HResult:X8}");
+                    Debug.WriteLine("Xbox Live is not available. This app needs to be configured in Partner Center.");
+                    return;
+                }
+                
+                // Get the core dispatcher
+                var dispatcher = CoreWindow.GetForCurrentThread().Dispatcher;
+                Debug.WriteLine("Dispatcher obtained");
+                
+                // Sign in silently first (if user was previously signed in)
+                Debug.WriteLine("Attempting silent sign-in...");
+                SignInResult result = await _xboxUser.SignInSilentlyAsync(dispatcher);
+                Debug.WriteLine($"Silent sign-in completed with status: {result.Status}");
+                
+                if (result.Status == SignInStatus.Success)
+                {
+                    Debug.WriteLine($"Xbox Live: Signed in as {_xboxUser.Gamertag}");
+                    await NotifyXboxLoginSuccess();
+                }
+                else if (result.Status == SignInStatus.UserInteractionRequired)
+                {
+                    // If silent sign-in fails, prompt user to sign in
+                    Debug.WriteLine("User interaction required, prompting user...");
+                    result = await _xboxUser.SignInAsync(dispatcher);
+                    
+                    if (result.Status == SignInStatus.Success)
+                    {
+                        Debug.WriteLine($"Xbox Live: Signed in as {_xboxUser.Gamertag}");
+                        await NotifyXboxLoginSuccess();
+                    }
+                    else
+                    {
+                        Debug.WriteLine($"Xbox Live: Sign-in failed with status {result.Status}");
+                    }
+                }
+                else
+                {
+                    Debug.WriteLine($"Xbox Live: Silent sign-in returned status {result.Status}");
+                }
+            }
+            catch (UnauthorizedAccessException uex)
+            {
+                Debug.WriteLine($"Xbox Live not configured properly in manifest: {uex.Message}");
+                Debug.WriteLine("To enable Xbox Live, you need to configure your app in Partner Center and update Package.appxmanifest");
+            }
+            catch (System.Runtime.InteropServices.COMException comEx)
+            {
+                Debug.WriteLine($"Xbox Live COM error (HRESULT: {comEx.HResult:X8}): {comEx.Message}");
+                Debug.WriteLine("This usually means Xbox Live services are not properly configured for this app.");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Xbox Live login error: {ex.GetType().Name}");
+                Debug.WriteLine($"Message: {ex.Message}");
+                Debug.WriteLine($"HRESULT: {ex.HResult:X8}");
+            }
+        }
+
+        private async Task NotifyXboxLoginSuccess()
+        {
+            // Notify the JavaScript side about successful Xbox login
+            string script = $@"
+                if (typeof window.onXboxLoginSuccess === 'function') {{
+                    window.onXboxLoginSuccess({{
+                        gamertag: '{_xboxUser.Gamertag}',
+                        xboxUserId: '{_xboxUser.XboxUserId}'
+                    }});
+                }}
+            ";
+            await WebView2.CoreWebView2.ExecuteScriptAsync(script);
         }
 
         private void Grid_KeyDown(object sender, KeyRoutedEventArgs e)

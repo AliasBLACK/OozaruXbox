@@ -35,8 +35,10 @@ var totalJobsStarted = 0;
 var totalJobsCompleted = 0;
 var pendingFetches = [];
 var debounceTimer = null;
-const DEBOUNCE_DELAY = 100; // milliseconds
-const MAX_CONCURRENT_REQUESTS = 6; // Maximum parallel requests
+
+// Configuration - disable rate limiting on Xbox (local files)
+const DEBOUNCE_DELAY = (typeof isXbox !== 'undefined' && isXbox) ? 0 : 100; // milliseconds
+const MAX_CONCURRENT_REQUESTS = (typeof isXbox !== 'undefined' && isXbox) ? Infinity : 6; // Maximum parallel requests
 const INITIAL_RETRY_DELAY = 1000; // Initial retry delay in ms
 const MAX_RETRIES = 3; // Maximum retry attempts
 var activeRequests = 0;
@@ -78,9 +80,14 @@ class Fido
 			if (debounceTimer !== null)
 				clearTimeout(debounceTimer);
 			
-			debounceTimer = setTimeout(() => {
+			if (DEBOUNCE_DELAY === 0) {
+				// No debounce - process immediately
 				this.processPendingFetches();
-			}, DEBOUNCE_DELAY);
+			} else {
+				debounceTimer = setTimeout(() => {
+					this.processPendingFetches();
+				}, DEBOUNCE_DELAY);
+			}
 		});
 	}
 
