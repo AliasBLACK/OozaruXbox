@@ -46,8 +46,19 @@ export { default as from, Query } from './from.js';
 export { default as Logger } from './logger.js';
 export { default as Random } from './random.js';
 
-// 3rd party libraries.
-import { decomp } from './decomp.js';
-globalThis.decomp = decomp;
-export { Matter } from './matter.js';
+// Matter.js and Vector classes.
+import { decomp } from './decomp.js'; global.decomp = decomp;
+import { Matter } from './matter.js';
+global.Vector = Matter.Vector;
+Vector.distance = function(v1, v2) { return Math.sqrt(Math.pow(v2.x - v1.x, 2) + Math.pow(v2.y - v1.y, 2)) }
+export { Matter };
+
+// Yoga layout engine.
 export { Yoga } from './yoga.js';
+
+// Extensions to built-in types
+import hexRGB from './hexRGB.js';
+Color.fromHex = function(hex) {
+	const rgb = Object.values(hexRGB(hex)).map(num => Math.round(num / 255 * 100) / 100)
+	return new Color(rgb[0], rgb[1], rgb[2])
+}

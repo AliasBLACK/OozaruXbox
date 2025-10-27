@@ -265,7 +265,8 @@ class Font
 
 	wordWrap(text, wrapWidth, scale = 1)
 	{
-		text = text.toString();
+		if (typeof text !== 'string')
+			text = text.toString();
 		const lines = [];
 		const codepoints = [];
 		let currentLine = "";
