@@ -273,6 +273,8 @@ class Sphere
 		else
 			print("openURLHelper:" + url)
 	}
+
+	static onIMESetContext(lamda) {}
 }
 
 class FS
