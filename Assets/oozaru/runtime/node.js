@@ -1,4 +1,5 @@
 import { Yoga } from './yoga.js'
+import { tnthai } from './tnthai.js'
 
 // Enums
 globalThis.renderMode = {
@@ -124,8 +125,12 @@ class NodeAbstract extends Yoga.Node
 	{
 		for (let i = 0; i < this.getChildCount(); i++)
 		{
-			this.getChild(i).update()
-			this.getChild(i).updateChildren()
+			let child = this.getChild(i)
+			if (!child.hidden)
+			{
+				child.update()
+				child.updateChildren()
+			}
 		}
 	}
 
@@ -317,6 +322,39 @@ export class Node extends NodeAbstract
 	}
 }
 
+// Thai word segmentation analyzer (lazy initialized)
+let thaiAnalyzer = null
+function getThaiAnalyzer() {
+	if (!thaiAnalyzer) thaiAnalyzer = new tnthai()
+	return thaiAnalyzer
+}
+
+// Thai upper vowels that require tone marks to be rendered higher
+const thaiUpperVowels = "ิีึืํ็ั"
+// Standard tone marks and their higher alternative glyphs
+const thaiToneMarks = "่้๊๋"
+const thaiToneMarksHigh = "๜๝๞๟"
+
+// Replace tone marks with higher alternatives when they follow upper vowels
+// or when they are followed by sara am (ำ) like in น้ำ
+function applyThaiToneMarkSubstitution(text) {
+	let result = ""
+	for (let i = 0; i < text.length; i++) {
+		const char = text[i]
+		const toneIndex = thaiToneMarks.indexOf(char)
+		if (toneIndex !== -1) {
+			const afterUpperVowel = i > 0 && thaiUpperVowels.includes(text[i - 1])
+			const beforeSaraAm = i + 1 < text.length && text[i + 1] === "ำ"
+			if (afterUpperVowel || beforeSaraAm) {
+				result += thaiToneMarksHigh[toneIndex]
+				continue
+			}
+		}
+		result += char
+	}
+	return result
+}
+
 export class Text extends NodeAbstract
 {
 	constructor() {
@@ -328,12 +366,13 @@ export class Text extends NodeAbstract
         this.color = Color.White
         this.cachedWidth = 0
 		this.isEastAsian = false
+		this.isThai = false
         return this
 	}
 
     setText(text)
     {
-        this.text = text
+        this.text = applyThaiToneMarkSubstitution(text)
         this.updateText(this.text)
         return this
     }
@@ -341,6 +380,12 @@ export class Text extends NodeAbstract
 	setEastAsian(bool)
 	{
 		this.isEastAsian = bool
+		return this
+	}
+
+	setThai(bool)
+	{
+		this.isThai = bool
 		return this
 	}
 
@@ -377,15 +422,21 @@ export class Text extends NodeAbstract
         contentWidth -= this.getComputedPadding(Yoga.EDGE_RIGHT)
 
         // Break text up into array of lines limited by width.
-		this.multiLine = this.isEastAsian ?
-            this.eastAsianWordWrap(this.font, text, contentWidth) :
-            this.font.wordWrap(text, contentWidth)
+		if (this.isThai)
+			this.multiLine = this.thaiWordWrap(this.font, text, contentWidth)
+		else if (this.isEastAsian)
+			this.multiLine = this.eastAsianWordWrap(this.font, text, contentWidth)
+		else
+			this.multiLine = this.font.wordWrap(text, contentWidth)
 
         // Calculate min height based on text and font.
         let contentHeight = this.font.height * this.multiLine.length
         contentHeight += this.getComputedPadding(Yoga.EDGE_TOP)
         contentHeight += this.getComputedPadding(Yoga.EDGE_BOTTOM)
-        this.setMinHeight(contentHeight)
+
+		// Change min height if different from before.
+		if (contentHeight != this.getMinHeight().value)
+        	this.setMinHeight(contentHeight)
 	}
 
 	eastAsianWordWrap(font, text, width)
@@ -406,7 +457,7 @@ export class Text extends NodeAbstract
 				if (isNumeric(char))
 					while(i + 1 < line.length && isNumeric(line[i + 1]))
 						char += line[++i]
-				else if (i + 1 < line.length && isAsianPunctuation(line[i + 1]))
+				if (i + 1 < line.length && isAsianPunctuation(line[i + 1]))
 					char += line[++i]
 
 				let charWidth = font.widthOf(char)
@@ -426,6 +477,45 @@ export class Text extends NodeAbstract
 			currentLength = 0
 			currentString = ""
 		}
+		return result
+	}
+
+	thaiWordWrap(font, text, width)
+	{
+		const analyzer = getThaiAnalyzer()
+		const lines = text.split("\n")
+		const result = []
+		
+		for (const line of lines)
+		{
+			// Segment Thai text into words using tnthai
+			const words = analyzer.segmenting(line).solution || []
+			
+			let currentLine = ""
+			let currentWidth = 0
+			
+			for (const word of words)
+			{
+				const wordWidth = font.widthOf(word)
+				
+				// If adding this word exceeds width, push current line and start new one
+				if (currentWidth + wordWidth > width && currentLine.length > 0)
+				{
+					result.push(currentLine)
+					currentLine = word
+					currentWidth = wordWidth
+				}
+				else
+				{
+					currentLine += word
+					currentWidth += wordWidth
+				}
+			}
+			
+			// Push the remaining text for this line
+			result.push(currentLine)
+		}
+		
 		return result
 	}
 	
