@@ -550,8 +550,8 @@ class Shader
 		return new Shader({
 			vertexSource: sources[0],
 			fragmentSource: sources[1],
-		})
-}
+		});
+	}
 
 	constructor(options)
 	{
