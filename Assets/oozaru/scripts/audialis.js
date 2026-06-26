@@ -168,8 +168,16 @@ class Sound
 		
 		// Try Web Audio API first
 		try {
+			Fido.startProcessingJob();
 			const arrayBuffer = await Fido.fetchData(url);
-			const audioBuffer = await defaultMixer.audioContext.decodeAudioData(arrayBuffer);
+			
+			// Track audio decoding as a processing job
+			let audioBuffer;
+			try {
+				audioBuffer = await defaultMixer.audioContext.decodeAudioData(arrayBuffer);
+			} finally {
+				Fido.endProcessingJob();
+			}
 			
 			// Create a special sound object that uses Web Audio API
 			const sound = new Sound(null); // Pass null to indicate Web Audio usage

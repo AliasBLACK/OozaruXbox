@@ -41,12 +41,26 @@ const INITIAL_RETRY_DELAY = 1000; // Initial retry delay in ms
 const MAX_RETRIES = 3; // Maximum retry attempts
 var activeRequests = 0;
 
+// Track additional processing jobs (like audio decoding)
+var processingJobsStarted = 0;
+var processingJobsCompleted = 0;
+
 export default
 class Fido
 {
 	static get numJobs()
 	{
-		return totalJobsStarted - totalJobsCompleted;
+		return (totalJobsStarted - totalJobsCompleted) + (processingJobsStarted - processingJobsCompleted);
+	}
+
+	static startProcessingJob()
+	{
+		processingJobsStarted++;
+	}
+
+	static endProcessingJob()
+	{
+		processingJobsCompleted++;
 	}
 
 	static get progress()
@@ -61,7 +75,7 @@ class Fido
 		}
 		let partial = bytesTotal > 0 ? Math.min(1.0, bytesDone / bytesTotal) : 0;
 		return this.numJobs > 0 ?
-			(partial + totalJobsCompleted) / totalJobsStarted :
+			(partial + totalJobsCompleted + processingJobsCompleted) / (totalJobsStarted + processingJobsStarted) :
 			1.0;
 	}
 
