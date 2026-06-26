@@ -35,6 +35,7 @@ precision mediump float;
 
 uniform sampler2D al_tex;
 uniform bool      al_use_tex;
+uniform float     alpha;
 
 in vec4 auto_color;
 in vec2 auto_texcoord;
@@ -46,5 +47,5 @@ void main()
 	vec4 color = al_use_tex
 		? auto_color * texture(al_tex, auto_texcoord)
         : auto_color;
-	fragColor = vec4(color.rgb, color.a * auto_color.a);
+	fragColor = vec4(color.rgb, color.a * alpha);
 }

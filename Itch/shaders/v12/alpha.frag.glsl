@@ -36,6 +36,7 @@ precision mediump float;
 
 uniform sampler2D al_tex;
 uniform bool      al_use_tex;
+uniform float     alpha;
 
 varying vec4 auto_color;
 varying vec2 auto_texcoord;
@@ -45,5 +46,5 @@ void main()
 	vec4 color = al_use_tex
 		? auto_color * texture2D(al_tex, auto_texcoord)
         : auto_color;
-	gl_FragColor = vec4(color.rgb, color.a * auto_color.a);
+	gl_FragColor = vec4(color.rgb, color.a * alpha);
 }
