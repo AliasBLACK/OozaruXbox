@@ -154,32 +154,68 @@ class Sound
 	#audioNode = null;
 	#currentMixer = null;
 	#fileName;
+	#audioBuffer;
+	#useWebAudio;
+	#volume;
+	#speed;
+	#repeat;
+	#playing;
+	#instances;
 
 	static async fromFile(fileName)
 	{
 		const url = Game.urlOf(fileName);
-		const blob = await Fido.fetch(url);
-		const blobUrl = URL.createObjectURL(blob);
-		const audioElement = new Audio();
-		await new Promise((resolve, reject) => {
-			audioElement.onloadedmetadata = () => {
-				resolve();
-			}
-			audioElement.onerror = () => {
-				reject(Error(`Couldn't load audio file '${url}'.`));
-			};
-			audioElement.src = blobUrl;
-		});
-		const sound = new Sound(audioElement);
-		sound.#fileName = Game.fullPath(fileName);
-		return sound;
+		
+		// Try Web Audio API first
+		try {
+			const arrayBuffer = await Fido.fetchData(url);
+			const audioBuffer = await defaultMixer.audioContext.decodeAudioData(arrayBuffer);
+			
+			// Create a special sound object that uses Web Audio API
+			const sound = new Sound(null); // Pass null to indicate Web Audio usage
+			sound.#fileName = Game.fullPath(fileName);
+			sound.#audioBuffer = audioBuffer;
+			sound.#useWebAudio = true;
+			return sound;
+		} catch (error) {
+			// Fallback to HTMLAudioElement if Web Audio fails
+			console.warn('Web Audio API failed, falling back to HTMLAudioElement:', error);
+			
+			const blob = await Fido.fetch(url);
+			const blobUrl = URL.createObjectURL(blob);
+			const audioElement = new Audio();
+			await new Promise((resolve, reject) => {
+				audioElement.onloadedmetadata = () => {
+					resolve();
+				}
+				audioElement.onerror = () => {
+					reject(Error(`Couldn't load audio file '${url}'.`));
+				};
+				audioElement.src = blobUrl;
+			});
+			const sound = new Sound(audioElement);
+			sound.#fileName = Game.fullPath(fileName);
+			return sound;
+		}
 	}
 
 	constructor(source)
 	{
-		if (source instanceof HTMLAudioElement) {
+		if (source === null) {
+			// Web Audio API usage
+			this.#audioElement = null;
+			this.#useWebAudio = true;
+			this.#audioBuffer = null;
+			this.#volume = 1.0;
+			this.#speed = 1.0;
+			this.#repeat = false;
+			this.#playing = false;
+			this.#instances = new Set();
+		}
+		else if (source instanceof HTMLAudioElement) {
 			this.#audioElement = source;
 			this.#audioElement.loop = true;
+			this.#useWebAudio = false;
 		}
 		else if (typeof source === 'string') {
 			throw Error("'new Sound' from filename is not supported");
@@ -196,78 +232,171 @@ class Sound
 
 	get length()
 	{
+		if (this.#useWebAudio) {
+			return this.#audioBuffer ? this.#audioBuffer.duration : 0;
+		}
 		return this.#audioElement.duration;
 	}
 
 	get playing()
 	{
+		if (this.#useWebAudio) {
+			return this.#playing;
+		}
 		return !this.#audioElement.paused;
 	}
 
 	get position()
 	{
+		if (this.#useWebAudio) {
+			// Web Audio API doesn't expose position easily
+			return 0;
+		}
 		return this.#audioElement.currentTime;
 	}
 
 	get repeat()
 	{
+		if (this.#useWebAudio) {
+			return this.#repeat;
+		}
 		return this.#audioElement.loop;
 	}
 
 	get speed()
 	{
+		if (this.#useWebAudio) {
+			return this.#speed;
+		}
 		return this.#audioElement.playbackRate;
 	}
 
 	get volume()
 	{
+		if (this.#useWebAudio) {
+			return this.#volume;
+		}
 		return this.#audioElement.volume;
 	}
 
 	set position(value)
 	{
-		this.#audioElement.currentTime = value;
+		if (!this.#useWebAudio) {
+			this.#audioElement.currentTime = value;
+		}
+		// Web Audio API position control would require more complex implementation
 	}
 
 	set repeat(value)
 	{
-		this.#audioElement.loop = value;
+		if (this.#useWebAudio) {
+			this.#repeat = value;
+		} else {
+			this.#audioElement.loop = value;
+		}
 	}
 
 	set speed(value)
 	{
-		this.#audioElement.playbackRate = value;
+		if (this.#useWebAudio) {
+			this.#speed = value;
+		} else {
+			this.#audioElement.playbackRate = value;
+		}
 	}
 
 	set volume(value)
 	{
-		this.#audioElement.volume = value;
+		if (this.#useWebAudio) {
+			this.#volume = value;
+			// Update all active instances
+			for (const instance of this.#instances) {
+				if (instance.gainNode) {
+					instance.gainNode.gain.value = value;
+				}
+			}
+		} else {
+			this.#audioElement.volume = value;
+		}
 	}
 
 	pause()
 	{
-		this.#audioElement.pause();
+		if (this.#useWebAudio) {
+			this.#playing = false;
+		} else {
+			this.#audioElement.pause();
+		}
 	}
 
 	play(mixer)
 	{
-		if (!mixer)
-		{
-			if (!this.#currentMixer) mixer = Mixer.Default
+		if (this.#useWebAudio) {
+			// Use Web Audio API
+			this.#playing = true;
+			
+			// Create a simple playback using the audio buffer
+			const source = defaultMixer.audioContext.createBufferSource();
+			source.buffer = this.#audioBuffer;
+			source.loop = this.#repeat;
+			source.playbackRate.value = this.#speed;
+			
+			// Create gain node for volume
+			const gainNode = defaultMixer.audioContext.createGain();
+			gainNode.gain.value = this.#volume;
+			
+			// Connect nodes
+			source.connect(gainNode);
+			gainNode.connect(defaultMixer.audioContext.destination);
+			
+			// Start playback
+			source.start();
+			
+			// Store gainNode with source for tween compatibility
+			source.gainNode = gainNode;
+			
+			// Track for stopping
+			this.#instances.add(source);
+			
+			// Clean up when ended
+			source.onended = () => {
+				this.#instances.delete(source);
+				if (this.#instances.size === 0) {
+					this.#playing = false;
+				}
+			};
+		} else {
+			// Use original HTMLAudioElement path
+			if (!mixer)
+			{
+				if (!this.#currentMixer) mixer = Mixer.Default
+			}
+			else if (mixer !== this.#currentMixer) {
+				this.#currentMixer = mixer;
+				if (this.#audioNode !== null)
+					this.#audioNode.disconnect();
+				this.#audioNode = mixer.attachAudio(this.#audioElement);
+			}
+			this.#audioElement.play();
 		}
-		else if (mixer !== this.#currentMixer) {
-			this.#currentMixer = mixer;
-			if (this.#audioNode !== null)
-				this.#audioNode.disconnect();
-			this.#audioNode = mixer.attachAudio(this.#audioElement);
-		}
-		this.#audioElement.play();
 	}
 
 	stop()
 	{
-		this.#audioElement.pause();
-		this.#audioElement.currentTime = 0.0;
+		if (this.#useWebAudio) {
+			this.#playing = false;
+			for (const source of this.#instances) {
+				try {
+					source.stop();
+				} catch (e) {
+					// Source might already be stopped
+				}
+			}
+			this.#instances.clear();
+		} else {
+			this.#audioElement.pause();
+			this.#audioElement.currentTime = 0.0;
+		}
 	}
 }
 
