@@ -234,34 +234,27 @@ class Sound
 	{
 		this.#volume = value;
 		if (this.#gainNode) {
-			this.#gainNode.gain.setValueAtTime(value, defaultMixer.audioContext.currentTime);
+			this.#gainNode.gain.value = this.#volume;
 		}
 	}
 
 	pause()
 	{
 		// Web Audio API doesn't support true pause, so we stop the source
-		this.#playing = false;
-		if (this.#source) {
-			try { this.#source.stop(); } catch (e) {}
-			this.#source = null;
-		}
+		this.stop();
 	}
 
 	play(mixer)
 	{
 		// Stop any existing playback first
-		if (this.#source) {
-			try { this.#source.stop(); } catch (e) {}
-			this.#source = null;
-		}
+		this.stop();
 		
 		// Create gain node once if needed
 		if (!this.#gainNode) {
 			this.#gainNode = defaultMixer.audioContext.createGain();
 			this.#gainNode.connect(defaultMixer.audioContext.destination);
 		}
-		this.#gainNode.gain.setValueAtTime(this.#volume, defaultMixer.audioContext.currentTime);
+		this.#gainNode.gain.value = this.#volume;
 		
 		// Create new source
 		this.#source = defaultMixer.audioContext.createBufferSource();
