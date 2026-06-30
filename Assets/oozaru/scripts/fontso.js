@@ -104,8 +104,8 @@ class Font
 	createGlyph(cp)
 	{
 		const glyph = this.#font.charToGlyph(String.fromCodePoint(cp))
-
-		if (glyph && glyph.advanceWidth)
+		
+		if (glyph && glyph.advanceWidth !== undefined)
 		{
 			this.#glyphs[cp] =
 			{
